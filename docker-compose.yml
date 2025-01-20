@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: sharing
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./data:/var/lib/postgresql/data
+      - ./backup.sql:/docker-entrypoint-initdb.d/backup.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sharing"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: always
+  db_restore:
+    image: postgres:latest
+    depends_on:
+      - db
+    volumes:
+      - ./backup.sql:/backup/backup.sql
+    entrypoint: ["sh", "-c", "echo 'Waiting for PostgreSQL to start...' && sleep 10 && pg_restore -U postgres -d sharing /backup/backup.sql"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+    ports:
+      - '15432:80'
+    depends_on:
+      - db
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/sharing
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    volumes:
+      - ./target/sharing-1.0.jar:/app/sharing.jar
+    restart: always
